@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: tasks.html
+    РОЛЬ: Доска задач (Kanban) с боковой панелью
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, notifications.js, tasks.js
+      - Данные: data/tasks.csv, data/users.csv, data/complexes.csv, data/comments.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Навигация генерируется централизованно из layout.js
+      3. Кликабельный профиль в правом верхнем углу
+      4. Kanban-доска с тремя статусами
+      5. Модальное окно задачи с комментариями и приватностью
+      6. Push-уведомления
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Доска задач - CRM для команды</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .comments-section {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .comments-header {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .comments-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 16px;
+        }
+        
+        .comment-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+        
+        .comment-date {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .comment-text {
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        
+        .comment-text .mention {
+            color: var(--accent);
+            font-weight: 500;
+            background: rgba(108, 108, 255, 0.15);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        
+        .comment-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 20px;
+        }
+        
+        .add-comment textarea {
+            width: 100%;
+            padding: 10px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .notification-btn-wrapper {
+            position: relative;
+            margin-left: auto;
+        }
+        
+        #notificationBadge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .add-task-btn-header {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .add-task-btn-header:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .private-badge {
+            display: inline-block;
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+        
+        .private-checkbox-wrapper {
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .private-checkbox-wrapper label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-actions">
+                    <button id="addTaskBtn" class="add-task-btn-header">
+                        <i class="fas fa-plus"></i> Новая задача
+                    </button>
+                    <div class="notification-btn-wrapper">
+                        <a href="notifications.html" class="nav-btn" id="notificationBtn" style="background: rgba(108, 108, 255, 0.12); padding: 10px 16px;">
+                            <i class="fas fa-bell"></i>
+                        </a>
+                        <span id="notificationBadge" style="display: none;"></span>
+                    </div>
+                </div>
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="kanban-board">
+                <div class="kanban-column" data-status="todo">
+                    <div class="column-header">
+                        <span><i class="fas fa-circle"></i> To Do</span>
+                        <span id="todoCount">0</span>
+                    </div>
+                    <div id="todoTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="todo"><i class="fas fa-plus"></i> Добавить задачу</button>
+                </div>
+                
+                <div class="kanban-column" data-status="in_progress">
+                    <div class="column-header">
+                        <span><i class="fas fa-spinner fa-pulse"></i> В работе</span>
+                        <span id="progressCount">0</span>
+                    </div>
+                    <div id="progressTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="in_progress"><i class="fas fa-plus"></i> Добавить задачу</button>
+                </div>
+                
+                <div class="kanban-column" data-status="done">
+                    <div class="column-header">
+                        <span><i class="fas fa-check-circle"></i> Готово</span>
+                        <span id="doneCount">0</span>
+                    </div>
+                    <div id="doneTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="done"><i class="fas fa-plus"></i> Добавить задачу</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle"><i class="fas fa-tasks"></i> Создать задачу</h3>
+            <input type="hidden" id="taskId">
+            <input type="text" id="taskTitle" placeholder="Название задачи" required>
+            <textarea id="taskDescription" placeholder="Описание задачи"></textarea>
+            <select id="taskAssignee">
+                <option value="">Назначить исполнителя</option>
+            </select>
+            <select id="taskComplex">
+                <option value="">Привязать к объекту</option>
+            </select>
+            <select id="taskPriority">
+                <option value="low">Низкий приоритет</option>
+                <option value="medium" selected>Средний приоритет</option>
+                <option value="high">Высокий приоритет</option>
+            </select>
+            <input type="date" id="taskDueDate">
+            <select id="taskStatus">
+                <option value="todo">To Do</option>
+                <option value="in_progress">В работе</option>
+                <option value="done">Готово</option>
+            </select>
+            
+            <div class="private-checkbox-wrapper" id="privateCheckboxGroup">
+                <label>
+                    <input type="checkbox" id="taskPrivate">
+                    <i class="fas fa-lock"></i> Приватная задача (видна только исполнителю и менеджерам)
+                </label>
+            </div>
+            
+            <div class="comments-section">
+                <div class="comments-header">
+                    <i class="fas fa-comments"></i> Комментарии (<span id="commentsCount">0</span>)
+                </div>
+                <div id="commentsList" class="comments-list">
+                    <div class="comment-empty">Нет комментариев</div>
+                </div>
+                <div class="add-comment">
+                    <textarea id="newComment" placeholder="Написать комментарий... (используйте @username для упоминания)" rows="2"></textarea>
+                    <button class="primary" onclick="addComment()" style="margin-top: 8px; width: 100%;"><i class="fas fa-paper-plane"></i> Отправить</button>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button onclick="closeModal()"><i class="fas fa-times"></i> Отмена</button>
+                <button class="primary" onclick="saveTask()"><i class="fas fa-save"></i> Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    <script src="notifications.js"></script>
+    <script src="tasks.js"></script>
+    
+    <script>
+        function updateUserProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) userNameSpan.textContent = user.name;
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        function updateNotificationBadge() {
+            var notifications = JSON.parse(localStorage.getItem('crm_notifications_center') || '[]');
+            var unread = 0;
+            for (var i = 0; i < notifications.length; i++) {
+                if (!notifications[i].read) unread++;
+            }
+            var badge = document.getElementById('notificationBadge');
+            if (badge) {
+                if (unread > 0) {
+                    badge.textContent = unread > 99 ? '99+' : unread;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+        
+        if (window.notifications && window.notifications.requestPermission) {
+            window.notifications.requestPermission();
+        }
+        
+        updateNotificationBadge();
+        setTimeout(updateUserProfile, 500);
+        
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'crm_notifications_center') updateNotificationBadge();
+        });
+        
+        if (window.sidebar) window.sidebar.initSidebar();
+    </script>
+</body>
+</html>

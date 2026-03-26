@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: admin.html
+    РОЛЬ: Панель администратора для управления пользователями
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, modal.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, admin.js
+      - Данные: data/users.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (генерируется централизованно из layout.js)
+      2. Список всех пользователей
+      3. Создание нового пользователя
+      4. Сброс пин-кода
+      5. Изменение роли пользователя
+      6. Удаление пользователя
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Управление пользователями - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .add-user-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 12px 24px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .users-table {
+            width: 100%;
+            background: var(--card-bg);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+        }
+        
+        .users-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .users-table th,
+        .users-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .users-table th {
+            background: rgba(108, 108, 255, 0.1);
+            font-weight: 600;
+        }
+        
+        .users-table tr:hover {
+            background: rgba(108, 108, 255, 0.05);
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        
+        .role-admin { background: rgba(108, 108, 255, 0.2); color: #6c6cff; }
+        .role-manager { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .role-agent { background: rgba(255, 193, 68, 0.2); color: #ffc107; }
+        .role-viewer { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
+        
+        .action-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            margin: 0 4px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .action-btn:hover {
+            background: rgba(108, 108, 255, 0.2);
+        }
+        
+        .action-btn.danger {
+            color: #ff6b6b;
+        }
+        
+        .action-btn.danger:hover {
+            background: rgba(255, 107, 107, 0.2);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        .pin-code {
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="admin-header">
+                <h2><i class="fas fa-users-cog"></i> Управление пользователями</h2>
+                <button class="add-user-btn" id="addUserBtn">
+                    <i class="fas fa-plus"></i> Добавить пользователя
+                </button>
+            </div>
+            
+            <div class="users-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Логин</th>
+                            <th>Имя</th>
+                            <th>Роль</th>
+                            <th>Email</th>
+                            <th>Пин-код</th>
+                            <th>Дата регистрации</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr><td colspan="7" class="empty-state">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно добавления пользователя -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-user-plus"></i> Добавить пользователя</h3>
+            <input type="text" id="newUsername" placeholder="Логин (github_username)" required>
+            <input type="text" id="newName" placeholder="Полное имя" required>
+            <select id="newRole">
+                <option value="agent">Агент</option>
+                <option value="manager">Менеджер</option>
+                <option value="viewer">Наблюдатель</option>
+                <option value="admin">Администратор</option>
+            </select>
+            <input type="email" id="newEmail" placeholder="Email">
+            <div class="modal-buttons">
+                <button onclick="closeAddUserModal()">Отмена</button>
+                <button class="primary" id="confirmAddUserBtn">Создать</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно сброса пин-кода -->
+    <div id="resetPinModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-key"></i> Сброс пин-кода</h3>
+            <p>Вы уверены, что хотите сбросить пин-код пользователя <strong id="resetUserName"></strong>?</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Новый пин-код будет сгенерирован автоматически.</p>
+            <input type="hidden" id="resetUserId">
+            <div class="modal-buttons">
+                <button onclick="closeResetPinModal()">Отмена</button>
+                <button class="primary" id="confirmResetPinBtn">Сбросить</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    
+    <script>
+        let currentUsersList = [];
+        
+        async function loadUsersList() {
+            const users = await window.auth.getUsers();
+            currentUsersList = users;
+            renderUsersTable(users);
+        }
+        
+        function renderUsersTable(users) {
+            const tbody = document.getElementById('usersTableBody');
+            if (!tbody) return;
+            
+            if (!users || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Нет пользователей</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            for (let i = 0; i < users.length; i++) {
+                const user = users[i];
+                let roleClass = '';
+                let roleLabel = '';
+                
+                if (user.role === 'admin') {
+                    roleClass = 'role-admin';
+                    roleLabel = 'Администратор';
+                } else if (user.role === 'manager') {
+                    roleClass = 'role-manager';
+                    roleLabel = 'Менеджер';
+                } else if (user.role === 'agent') {
+                    roleClass = 'role-agent';
+                    roleLabel = 'Агент';
+                } else {
+                    roleClass = 'role-viewer';
+                    roleLabel = 'Наблюдатель';
+                }
+                
+                html += '<tr>' +
+                    '<td>' + escapeHtml(user.github_username) + '</td>' +
+                    '<td>' + escapeHtml(user.name) + '</td>' +
+                    '<td><span class="role-badge ' + roleClass + '">' + roleLabel + '</span></td>' +
+                    '<td>' + escapeHtml(user.email || '—') + '</td>' +
+                    '<td class="pin-code">••••</td>' +
+                    '<td>' + escapeHtml(user.created_at || '—') + '</td>' +
+                    '<td>' +
+                        '<button class="action-btn" onclick="openResetPinModal(\'' + user.github_username + '\', \'' + escapeHtml(user.name) + '\')" title="Сбросить пин-код"><i class="fas fa-key"></i></button>' +
+                        '<button class="action-btn danger" onclick="deleteUser(\'' + user.github_username + '\')" title="Удалить пользователя"><i class="fas fa-trash"></i></button>' +
+                    '</td>' +
+                '</tr>';
+            }
+            
+            tbody.innerHTML = html;
+        }
+        
+        async function addUser() {
+            const username = document.getElementById('newUsername').value.trim();
+            const name = document.getElementById('newName').value.trim();
+            const role = document.getElementById('newRole').value;
+            const email = document.getElementById('newEmail').value.trim();
+            
+            if (!username || !name) {
+                alert('Заполните логин и имя');
+                return;
+            }
+            
+            const result = await window.auth.createUser(username, name, role, email);
+            
+            if (result.success) {
+                alert('Пользователь создан!\nВременный пин-код: ' + result.tempPin + '\nСообщите его пользователю.');
+                closeAddUserModal();
+                loadUsersList();
+            } else {
+                alert('Ошибка: ' + result.error);
+            }
+        }
+        
+        function openResetPinModal(username, name) {
+            document.getElementById('resetUserId').value = username;
+            document.getElementById('resetUserName').textContent = name;
+            document.getElementById('resetPinModal').style.display = 'flex';
+        }
+        
+        async function resetPin() {
+            const username = document.getElementById('resetUserId').value;
+            const result = await window.auth.resetPin(username);
+            
+            if (result.success) {
+                alert('Пин-код сброшен!\nНовый пин-код: ' + result.newPin);
+                closeResetPinModal();
+                loadUsersList();
+            } else {
+                alert('Ошибка: ' + result.error);
+            }
+        }
+        
+        async function deleteUser(username) {
+            if (!confirm('Вы уверены, что хотите удалить пользователя ' + username + '? Это действие необратимо.')) {
+                return;
+            }
+            
+            const currentUser = window.auth.getCurrentUser();
+            if (currentUser.github_username === username) {
+                alert('Нельзя удалить самого себя');
+                return;
+            }
+            
+            const users = await window.auth.getUsers();
+            const filteredUsers = users.filter(u => u.github_username !== username);
+            const saved = await window.utils.saveCSVToGitHub('data/users.csv', filteredUsers, 'Delete user ' + username);
+            
+            if (saved) {
+                alert('Пользователь удалён');
+                loadUsersList();
+            } else {
+                alert('Ошибка удаления');
+            }
+        }
+        
+        function closeAddUserModal() {
+            document.getElementById('addUserModal').style.display = 'none';
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newName').value = '';
+            document.getElementById('newEmail').value = '';
+        }
+        
+        function closeResetPinModal() {
+            document.getElementById('resetPinModal').style.display = 'none';
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function updateUserProfile() {
+            const user = window.auth.getCurrentUser();
+            if (!user) return;
+            
+            const userNameSpan = document.getElementById('userName');
+            const userRoleSpan = document.getElementById('userRole');
+            const userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) userNameSpan.textContent = user.name;
+            if (userRoleSpan) {
+                let roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            if (userAvatar) {
+                const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        async function init() {
+            await window.auth.initAuth();
+            
+            const user = window.auth.getCurrentUser();
+            if (!user || user.role !== 'admin') {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            updateUserProfile();
+            await loadUsersList();
+            
+            if (window.theme) window.theme.initTheme();
+            if (window.sidebar) window.sidebar.initSidebar();
+        }
+        
+        document.getElementById('addUserBtn').addEventListener('click', () => {
+            document.getElementById('addUserModal').style.display = 'flex';
+        });
+        
+        document.getElementById('confirmAddUserBtn').addEventListener('click', addUser);
+        document.getElementById('confirmResetPinBtn').addEventListener('click', resetPin);
+        
+        window.onclick = function(event) {
+            const addModal = document.getElementById('addUserModal');
+            const resetModal = document.getElementById('resetPinModal');
+            if (event.target === addModal) closeAddUserModal();
+            if (event.target === resetModal) closeResetPinModal();
+        };
+        
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

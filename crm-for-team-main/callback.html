@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в CRM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(ellipse at 20% 30%, #0a0a1a, #050510);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container {
+            text-align: center;
+            background: rgba(15, 15, 35, 0.7);
+            backdrop-filter: blur(12px);
+            border-radius: 32px;
+            padding: 48px;
+            border: 1px solid rgba(108, 108, 255, 0.3);
+        }
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #6c6cff;
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .error {
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon" id="icon">
+            <i class="fas fa-spinner fa-pulse"></i>
+        </div>
+        <h2 id="title">Выполняется вход...</h2>
+        <p id="message">Пожалуйста, подождите</p>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        async function handleCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            
+            if (!token) {
+                document.getElementById('icon').innerHTML = '<i class="fas fa-times-circle"></i>';
+                document.getElementById('title').innerHTML = 'Ошибка входа';
+                document.getElementById('message').innerHTML = 'Недействительная ссылка';
+                setTimeout(() => { window.location.href = 'auth.html'; }, 3000);
+                return;
+            }
+            
+            try {
+                const user = await window.auth.verifyMagicToken(token);
+                
+                if (user) {
+                    window.auth.saveSession(user, 7);
+                    document.getElementById('icon').innerHTML = '<i class="fas fa-check-circle"></i>';
+                    document.getElementById('title').innerHTML = 'Вход выполнен!';
+                    document.getElementById('message').innerHTML = 'Перенаправление...';
+                    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+                } else {
+                    throw new Error('Недействительный токен');
+                }
+            } catch (error) {
+                document.getElementById('icon').innerHTML = '<i class="fas fa-times-circle error"></i>';
+                document.getElementById('title').innerHTML = 'Ошибка входа';
+                document.getElementById('message').innerHTML = 'Ссылка недействительна или истекла';
+                setTimeout(() => { window.location.href = 'auth.html'; }, 3000);
+            }
+        }
+        
+        handleCallback();
+    </script>
+</body>
+</html>

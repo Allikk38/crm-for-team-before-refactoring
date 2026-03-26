@@ -1,0 +1,7 @@
+id,type,person_type,name,phone,email,notes,created_at
+1,seller,individual,Иванов Иван,+7 999 123-45-67,ivan@mail.ru,Срочная продажа,2026-03-25
+2,buyer,individual,Петрова Анна,+7 999 765-43-21,anna@mail.ru,Ипотека одобрена,2026-03-25
+3,seller,legal,СтройИнвест,+7 495 123-45-67,info@stroyinvest.ru,Застройщик,2026-03-26
+4,buyer,individual,Сидоров Петр,+7 999 111-22-33,petr@mail.ru,Бюджет до 6 млн,2026-03-26
+5,seller,individual,Козлова Елена,+7 999 444-55-66,elena@mail.ru,Требуется ремонт,2026-03-24
+6,buyer,individual,Львов Дмитрий,+7 999 777-88-99,dmitry@mail.ru,Инвестор,2026-03-24

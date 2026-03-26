@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: index.html
+    РОЛЬ: Главная страница (дашборд) с боковой панелью
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, app.js
+      - Данные: data/users.csv, data/tasks.csv, data/complexes.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Навигация генерируется централизованно из layout.js
+      3. Кликабельный профиль в правом верхнем углу
+      4. Загрузка KPI, графиков, рейтинга агентов
+      5. Интеграция с системой тем
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Дашборд - CRM для команды</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- CSS модули -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .analytics-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .analytics-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .analytics-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+        
+        .analytics-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .kpi-compact {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        
+        .kpi-compact-item {
+            text-align: center;
+        }
+        
+        .kpi-compact-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .kpi-compact-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        
+        .trend-up {
+            color: #4caf50;
+            font-size: 0.7rem;
+        }
+        
+        .trend-down {
+            color: #ff6b6b;
+            font-size: 0.7rem;
+        }
+        
+        .chart-container {
+            margin-top: 16px;
+        }
+        
+        .chart-bars-mini {
+            display: flex;
+            align-items: flex-end;
+            height: 100px;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .chart-bar-mini {
+            flex: 1;
+            background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+            border-radius: 4px 4px 0 0;
+            transition: height 0.5s ease;
+            min-height: 4px;
+        }
+        
+        .agent-ranking {
+            margin-top: 12px;
+        }
+        
+        .agent-ranking-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .agent-ranking-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .agent-ranking-badge {
+            width: 24px;
+            height: 24px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        .agent-ranking-value {
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        @media (max-width: 768px) {
+            .analytics-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Базовые KPI карточки -->
+            <div class="dashboard">
+                <div class="card" onclick="window.location.href='tasks.html'">
+                    <h3><i class="fas fa-play-circle"></i> Активные задачи</h3>
+                    <p id="tasksCount">0</p>
+                </div>
+                <div class="card" onclick="window.location.href='complexes.html'">
+                    <h3><i class="fas fa-building"></i> Объекты</h3>
+                    <p id="complexesCount">0</p>
+                </div>
+                <div class="card">
+                    <h3><i class="fas fa-users"></i> Пользователи</h3>
+                    <p id="usersCount">0</p>
+                </div>
+            </div>
+
+            <!-- Расширенная аналитика -->
+            <div class="analytics-section">
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-chart-simple"></i> Ключевые показатели
+                    </div>
+                    <div class="kpi-compact">
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiCompletedWeek">0</div>
+                            <div class="kpi-compact-label">Завершено за неделю</div>
+                            <span id="kpiCompletedTrend" class="trend-up">▲ 0%</span>
+                        </div>
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiOverdue">0</div>
+                            <div class="kpi-compact-label">Просрочено</div>
+                            <span id="kpiOverdueTrend" class="trend-down">▼ 0%</span>
+                        </div>
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiConversion">0%</div>
+                            <div class="kpi-compact-label">Конверсия задач</div>
+                            <span id="kpiConversionTrend" class="trend-up">▲ 0%</span>
+                        </div>
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiAvgTime">0</div>
+                            <div class="kpi-compact-label">Среднее время (дни)</div>
+                            <span id="kpiAvgTimeTrend" class="trend-down">▼ 0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-chart-line"></i> Динамика задач
+                    </div>
+                    <div id="weeklyChart" class="chart-container">
+                        <div class="chart-bars-mini" id="weeklyBars"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 8px;">
+                        <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="analytics-section">
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-trophy"></i> Топ агентов
+                    </div>
+                    <div id="agentRanking" class="agent-ranking">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка...</div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-chart-line"></i> Прогресс проекта
+                    </div>
+                    <div class="progress-header" style="margin-bottom: 8px;">
+                        <h3 style="font-size: 0.9rem;">Общий прогресс</h3>
+                        <span id="progressPercentLarge">0%</span>
+                    </div>
+                    <div class="progress-bar-container" style="height: 8px;">
+                        <div class="progress-bar-fill" id="progressFillLarge" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-stats" style="margin-top: 12px;">
+                        <span><i class="fas fa-check-circle"></i> <span id="completedTasksLarge">0</span> завершено</span>
+                        <span><i class="fas fa-list"></i> <span id="totalTasksLarge">0</span> всего</span>
+                    </div>
+                    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--card-border);">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+                            <span><i class="fas fa-calendar"></i> По плану: <span id="projectedEnd">—</span></span>
+                            <span><i class="fas fa-bolt"></i> Скорость: <span id="completionSpeed">0</span> задач/день</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h2><i class="fas fa-rocket"></i> Добро пожаловать в CRM!</h2>
+                <p id="welcomeMessage">Войдите для начала работы</p>
+                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(108,108,255,0.2);">
+                    <p style="font-size: 0.85rem; opacity: 0.7;">
+                        <i class="fas fa-lightbulb"></i> <strong>Совет:</strong> Используйте Ctrl+K для быстрого поиска.
+                        Нажмите на имя пользователя, чтобы открыть профиль.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

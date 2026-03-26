@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Вход в CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .login-container {
+            max-width: 480px;
+            margin: 80px auto 40px;
+        }
+        
+        .login-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 32px;
+            border: 1px solid var(--card-border);
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .login-logo {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: var(--accent);
+        }
+        
+        .login-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .login-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            font-size: 0.9rem;
+        }
+        
+        .login-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 12px;
+        }
+        
+        .login-tab {
+            flex: 1;
+            padding: 8px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-radius: 40px;
+        }
+        
+        .login-tab.active {
+            color: var(--accent);
+            background: rgba(108, 108, 255, 0.15);
+        }
+        
+        .login-tab:hover {
+            color: var(--accent);
+        }
+        
+        .login-panel {
+            display: none;
+        }
+        
+        .login-panel.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .input-group select,
+        .input-group input {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .input-group select:focus,
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .pin-input {
+            letter-spacing: 4px;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        
+        .remember-me input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            border-radius: 40px;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .login-btn:disabled {
+            opacity: 0.6;
+            transform: none;
+            cursor: not-allowed;
+        }
+        
+        .error-message {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 16px;
+            color: #ff6b6b;
+            font-size: 0.85rem;
+            display: none;
+        }
+        
+        .loading {
+            display: none;
+            margin-top: 16px;
+            color: var(--text-muted);
+        }
+        
+        .loading i {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .info-text {
+            margin-top: 24px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .magic-link-info {
+            background: rgba(108, 108, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 16px;
+            font-size: 0.75rem;
+            text-align: left;
+        }
+        
+        /* Модальное окно смены пин-кода */
+        .change-pin-modal .modal-content {
+            max-width: 400px;
+        }
+        
+        .change-pin-modal input {
+            margin-bottom: 16px;
+        }
+        
+        @media (max-width: 768px) {
+            .login-container {
+                margin: 40px auto;
+                padding: 0 16px;
+            }
+            
+            .login-card {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-logo">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="login-title">CRM для команды</div>
+                <div class="login-subtitle">Управление проектами и задачами</div>
+                
+                <div class="login-tabs">
+                    <button class="login-tab active" data-tab="quick">🔑 Быстрый вход</button>
+                    <button class="login-tab" data-tab="magic">📧 Вход по ссылке</button>
+                </div>
+                
+                <!-- Панель быстрого входа -->
+                <div id="quickPanel" class="login-panel active">
+                    <div class="input-group">
+                        <label><i class="fas fa-user"></i> Сотрудник</label>
+                        <select id="userSelect">
+                            <option value="">Загрузка...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label><i class="fas fa-lock"></i> Пин-код (4 цифры)</label>
+                        <input type="password" id="pinCode" class="pin-input" maxlength="4" placeholder="••••" inputmode="numeric">
+                    </div>
+                    
+                    <div class="remember-me">
+                        <input type="checkbox" id="rememberMe">
+                        <label for="rememberMe">Запомнить меня (30 дней)</label>
+                    </div>
+                    
+                    <button id="quickLoginBtn" class="login-btn">➡️ Войти</button>
+                    
+                    <div class="magic-link-info">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Не знаете пин-код?</strong> Спросите у руководителя. 
+                        Первый вход — используйте временный код, который выдаст администратор.
+                    </div>
+                </div>
+                
+                <!-- Панель входа по ссылке -->
+                <div id="magicPanel" class="login-panel">
+                    <div class="input-group">
+                        <label><i class="fas fa-envelope"></i> Корпоративная почта</label>
+                        <input type="email" id="magicEmail" placeholder="ivan@company.ru">
+                    </div>
+                    
+                    <button id="magicLinkBtn" class="login-btn">📩 Отправить ссылку для входа</button>
+                    
+                    <div class="magic-link-info">
+                        <i class="fas fa-envelope"></i> 
+                        Мы отправим ссылку на вашу почту. Перейдите по ней для автоматического входа.
+                        <br><br>
+                        <i class="fas fa-clock"></i> Ссылка действительна 30 минут.
+                    </div>
+                </div>
+                
+                <div id="errorMessage" class="error-message"></div>
+                <div id="loading" class="loading">
+                    <i class="fas fa-spinner fa-pulse"></i> Проверка...
+                </div>
+                
+                <div class="info-text">
+                    <i class="fas fa-shield-alt"></i> Безопасный вход. Все данные защищены.
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно смены пин-кода при первом входе -->
+    <div id="changePinModal" class="modal change-pin-modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-key"></i> Смена пин-кода</h3>
+            <p style="margin-bottom: 20px; font-size: 0.9rem; color: var(--text-muted);">
+                Это ваш первый вход. Пожалуйста, установите новый пин-код для безопасности.
+            </p>
+            <input type="hidden" id="tempUsername">
+            <div class="input-group">
+                <label><i class="fas fa-lock"></i> Новый пин-код (4 цифры)</label>
+                <input type="password" id="newPin" class="pin-input" maxlength="4" placeholder="••••" inputmode="numeric">
+            </div>
+            <div class="input-group">
+                <label><i class="fas fa-check-circle"></i> Подтвердите пин-код</label>
+                <input type="password" id="confirmPin" class="pin-input" maxlength="4" placeholder="••••" inputmode="numeric">
+            </div>
+            <div class="modal-buttons">
+                <button class="primary" id="saveNewPinBtn" style="width: 100%;">Сохранить и войти</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="theme.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        let usersList = [];
+        let pendingUser = null;
+        
+        async function loadUsersForSelect() {
+            try {
+                usersList = await loadCSV('data/users.csv');
+                const select = document.getElementById('userSelect');
+                if (select && usersList && usersList.length > 0) {
+                    select.innerHTML = '<option value="">Выберите сотрудника</option>';
+                    for (let i = 0; i < usersList.length; i++) {
+                        const user = usersList[i];
+                        const option = document.createElement('option');
+                        option.value = user.github_username;
+                        let roleLabel = '';
+                        if (user.role === 'admin') roleLabel = 'Администратор';
+                        else if (user.role === 'manager') roleLabel = 'Менеджер';
+                        else if (user.role === 'agent') roleLabel = 'Агент';
+                        else roleLabel = 'Наблюдатель';
+                        option.textContent = user.name + ' (' + roleLabel + ')';
+                        select.appendChild(option);
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки пользователей:', error);
+            }
+        }
+        
+        // Быстрый вход
+        async function quickLogin() {
+            const userSelect = document.getElementById('userSelect');
+            const pinInput = document.getElementById('pinCode');
+            const rememberMe = document.getElementById('rememberMe');
+            const errorDiv = document.getElementById('errorMessage');
+            const loadingDiv = document.getElementById('loading');
+            
+            const username = userSelect.value;
+            const pin = pinInput.value;
+            
+            if (!username) {
+                showError('Выберите сотрудника');
+                return;
+            }
+            
+            if (!pin || pin.length !== 4) {
+                showError('Введите 4-значный пин-код');
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const result = await window.auth.loginWithPin(username, pin);
+                
+                if (result.success) {
+                    const sessionDuration = rememberMe.checked ? 30 : 1;
+                    window.auth.saveSession(result.user, sessionDuration);
+                    window.location.href = 'index.html';
+                } else if (result.needChange) {
+                    // Требуется смена пин-кода
+                    pendingUser = result.user;
+                    document.getElementById('tempUsername').value = result.user.github_username;
+                    openChangePinModal();
+                } else {
+                    showError(result.error || 'Неверный пин-код. Попробуйте ещё раз.');
+                    pinInput.value = '';
+                    pinInput.focus();
+                }
+            } catch (error) {
+                showError('Ошибка подключения. Попробуйте позже.');
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+        
+        // Смена пин-кода при первом входе
+        async function saveNewPin() {
+            const username = document.getElementById('tempUsername').value;
+            const newPin = document.getElementById('newPin').value;
+            const confirmPin = document.getElementById('confirmPin').value;
+            const errorDiv = document.getElementById('errorMessage');
+            
+            if (!newPin || newPin.length !== 4 || !/^\d+$/.test(newPin)) {
+                showError('Пин-код должен быть 4 цифры');
+                return;
+            }
+            
+            if (newPin !== confirmPin) {
+                showError('Пин-коды не совпадают');
+                return;
+            }
+            
+            try {
+                // Используем временный пин-код 1234 как старый
+                const result = await window.auth.changePin(username, '1234', newPin);
+                
+                if (result.success) {
+                    // Входим с новым пин-кодом
+                    const loginResult = await window.auth.loginWithPin(username, newPin);
+                    if (loginResult.success) {
+                        window.auth.saveSession(loginResult.user, 7);
+                        window.location.href = 'index.html';
+                    } else {
+                        showError('Ошибка входа после смены пин-кода');
+                    }
+                } else {
+                    showError(result.error || 'Ошибка смены пин-кода');
+                }
+            } catch (error) {
+                showError('Ошибка при смене пин-кода');
+            }
+        }
+        
+        // Magic link вход
+        async function sendMagicLink() {
+            const email = document.getElementById('magicEmail').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const loadingDiv = document.getElementById('loading');
+            
+            if (!email || !email.includes('@')) {
+                showError('Введите корректный email');
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const result = await window.auth.sendMagicLink(email);
+                
+                if (result.success) {
+                    showSuccess('Ссылка для входа отправлена на ' + email);
+                    document.getElementById('magicEmail').value = '';
+                } else {
+                    showError(result.error || 'Пользователь с таким email не найден');
+                }
+            } catch (error) {
+                showError('Ошибка отправки. Попробуйте позже.');
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.style.background = 'rgba(76, 175, 80, 0.2)';
+            errorDiv.style.borderColor = 'rgba(76, 175, 80, 0.3)';
+            errorDiv.style.color = '#4caf50';
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+                errorDiv.style.background = '';
+                errorDiv.style.borderColor = '';
+                errorDiv.style.color = '';
+            }, 5000);
+        }
+        
+        function openChangePinModal() {
+            const modal = document.getElementById('changePinModal');
+            if (modal) modal.style.display = 'flex';
+        }
+        
+        function closeChangePinModal() {
+            const modal = document.getElementById('changePinModal');
+            if (modal) modal.style.display = 'none';
+            document.getElementById('newPin').value = '';
+            document.getElementById('confirmPin').value = '';
+        }
+        
+        // Переключение вкладок
+        document.querySelectorAll('.login-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                const panelId = tab.dataset.tab + 'Panel';
+                document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById(panelId).classList.add('active');
+            });
+        });
+        
+        // Обработчики
+        document.getElementById('quickLoginBtn').addEventListener('click', quickLogin);
+        document.getElementById('magicLinkBtn').addEventListener('click', sendMagicLink);
+        document.getElementById('saveNewPinBtn').addEventListener('click', saveNewPin);
+        
+        // Enter в поле пин-кода
+        document.getElementById('pinCode').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') quickLogin();
+        });
+        
+        // Закрытие модального окна по клику вне
+        window.onclick = function(event) {
+            const modal = document.getElementById('changePinModal');
+            if (event.target === modal) {
+                closeChangePinModal();
+            }
+        };
+        
+        // Загрузка списка пользователей
+        loadUsersForSelect();
+        
+        // Проверка сессии
+        if (window.auth && window.auth.checkSession()) {
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

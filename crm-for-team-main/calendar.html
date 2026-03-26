@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: calendar.html
+    РОЛЬ: Календарь задач с возможностью drag-and-drop
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, calendar.css, modal.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, calendar.js
+      - Данные: data/tasks.csv, data/users.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Навигация генерируется централизованно из layout.js
+      3. Кликабельный профиль в правом верхнем углу
+      4. Отображение задач на календаре
+      5. Drag-and-drop для изменения дедлайнов
+      6. Навигация по месяцам
+      7. Кнопка "Сегодня" для быстрого перехода
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Календарь задач - CRM для команды</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- CSS модули -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .calendar-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 28px;
+            border: 1px solid var(--card-border);
+            padding: 24px;
+            overflow-x: auto;
+        }
+        
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .current-month {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        
+        .calendar-nav {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .calendar-nav button {
+            background: rgba(108, 108, 255, 0.15);
+            border: 1px solid var(--card-border);
+            padding: 8px 16px;
+            border-radius: 40px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .calendar-nav button:hover {
+            background: rgba(108, 108, 255, 0.3);
+        }
+        
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            margin-bottom: 12px;
+            padding: 12px 0;
+            background: var(--input-bg);
+            border-radius: 16px;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        
+        .calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        
+        .calendar-day {
+            min-height: 100px;
+            background: var(--input-bg);
+            border-radius: 16px;
+            padding: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .calendar-day:hover {
+            background: rgba(108, 108, 255, 0.15);
+            transform: scale(0.98);
+        }
+        
+        .calendar-day.other-month {
+            opacity: 0.5;
+        }
+        
+        .calendar-day.today {
+            border: 2px solid var(--accent);
+        }
+        
+        .day-number {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+        
+        .day-tasks {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .calendar-task {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+            background: rgba(108, 108, 255, 0.2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: grab;
+        }
+        
+        .calendar-task:active {
+            cursor: grabbing;
+        }
+        
+        .calendar-task.overdue {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+        
+        .calendar-task.done {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+        
+        .info-panel-calendar {
+            margin-top: 24px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 16px 20px;
+            border: 1px solid var(--card-border);
+            font-size: 0.85rem;
+        }
+        
+        @media (max-width: 768px) {
+            .calendar-day {
+                min-height: 70px;
+            }
+            
+            .calendar-task {
+                font-size: 0.6rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="calendar-container">
+                <div class="calendar-header">
+                    <div class="current-month">
+                        <i class="fas fa-calendar-week"></i> <span id="currentMonth">Март 2026</span>
+                    </div>
+                    <div class="calendar-nav">
+                        <button id="prevMonth"><i class="fas fa-chevron-left"></i></button>
+                        <button id="todayBtn"><i class="fas fa-calendar-day"></i> Сегодня</button>
+                        <button id="nextMonth"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                </div>
+                <div id="calendarDays" class="calendar-days"></div>
+            </div>
+            
+            <div class="info-panel-calendar">
+                <i class="fas fa-info-circle"></i> 
+                <strong>Drag & Drop:</strong> Перетащите задачу из календаря на другую дату для изменения дедлайна. 
+                Нажмите <i class="fas fa-trash-alt"></i> рядом с задачей, чтобы удалить дедлайн.
+            </div>
+        </main>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    <script src="calendar.js"></script>
+    
+    <script>
+        // Обновление информации о пользователе
+        function updateUserProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) {
+                userNameSpan.textContent = user.name;
+            }
+            
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        setTimeout(updateUserProfile, 500);
+        
+        if (window.sidebar) {
+            window.sidebar.initSidebar();
+        }
+    </script>
+</body>
+</html>

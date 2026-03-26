@@ -1,0 +1,89 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+    position: relative;
+    transition: background 0.3s ease;
+}
+
+.container {
+    max-width: 1440px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* Анимированная сетка фона */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        linear-gradient(rgba(108, 108, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(108, 108, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+}
+/* Кнопка выхода в боковой панели */
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sidebar-footer .collapse-btn,
+.sidebar-footer .logout-btn {
+    width: 100%;
+    background: rgba(108, 108, 255, 0.15);
+    border: 1px solid var(--card-border);
+    padding: 10px 16px;
+    border-radius: 40px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.85rem;
+}
+
+.sidebar-footer .collapse-btn:hover,
+.sidebar-footer .logout-btn:hover {
+    background: rgba(108, 108, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.sidebar-footer .logout-btn i {
+    color: #ff6b6b;
+}
+
+.sidebar-footer .logout-btn:hover i {
+    color: #ff8787;
+}
+
+/* Свёрнутая боковая панель */
+.sidebar.collapsed .sidebar-footer .collapse-btn span,
+.sidebar.collapsed .sidebar-footer .logout-btn span {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-footer .collapse-btn,
+.sidebar.collapsed .sidebar-footer .logout-btn {
+    justify-content: center;
+    padding: 10px;
+}
+
+.sidebar.collapsed .sidebar-footer .collapse-btn i,
+.sidebar.collapsed .sidebar-footer .logout-btn i {
+    margin: 0;
+}

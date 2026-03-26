@@ -1,0 +1,5 @@
+id,title,description,assigned_to,created_by,status,priority,created_at,updated_at,due_date,complex_id,is_private
+2,Настроить GitHub Pages,Подключить репозиторий к GitHub Pages,Danilyan,Danilyan,done,medium,2026-03-24,2026-03-25,2026-03-26,,false
+4,Написать документацию,Создать README и инструкцию для команды,Danilyan,Danilyan,done,medium,2026-03-24,2026-03-24,2026-03-28,,false
+9,Важный проект (приватный),Только для ответственных,Danilyan,Danilyan,done,medium,2026-03-25,2026-03-26,2026-03-26,1,true
+10,Общая задача (публичная),Доступна всем,Reshetov,Danilyan,todo,medium,2026-03-25,2026-03-25,2026-03-26,1,false

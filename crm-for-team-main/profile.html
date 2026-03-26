@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: profile.html
+    РОЛЬ: Личный кабинет пользователя
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, profile.js
+      - Данные: data/users.csv, data/tasks.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Навигация генерируется централизованно из layout.js
+      3. Кликабельный профиль в правом верхнем углу
+      4. Отображение профиля текущего пользователя
+      5. Личная статистика (завершённые задачи, активные, просроченные, среднее время)
+      6. График личной активности
+      7. Настройки интерфейса (тема, уведомления, компактный режим)
+      8. История последних действий
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Личный кабинет - CRM для команды</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .profile-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+        
+        .profile-sidebar {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 28px;
+            border: 1px solid var(--card-border);
+            padding: 32px 24px;
+            text-align: center;
+        }
+        
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 3rem;
+            color: white;
+        }
+        
+        .profile-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .profile-role {
+            display: inline-block;
+            background: rgba(108, 108, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-bottom: 16px;
+        }
+        
+        .profile-info-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--card-border);
+            font-size: 0.85rem;
+        }
+        
+        .profile-info-item i {
+            width: 24px;
+            color: var(--accent);
+        }
+        
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .profile-stat {
+            text-align: center;
+        }
+        
+        .profile-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .profile-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .profile-main {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 28px;
+            border: 1px solid var(--card-border);
+            padding: 32px;
+        }
+        
+        .profile-section {
+            margin-bottom: 32px;
+        }
+        
+        .profile-section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--card-border);
+        }
+        
+        .settings-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .setting-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .setting-label i {
+            width: 24px;
+            color: var(--accent);
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--accent);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+        
+        .activity-chart-small {
+            margin-top: 20px;
+        }
+        
+        .chart-bars-profile {
+            display: flex;
+            align-items: flex-end;
+            height: 100px;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .chart-bar-profile {
+            flex: 1;
+            background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+            border-radius: 6px 6px 0 0;
+            transition: height 0.5s ease;
+            min-height: 4px;
+        }
+        
+        .recent-tasks-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .recent-task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .recent-task-title {
+            font-weight: 500;
+        }
+        
+        .recent-task-date {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .edit-btn {
+            background: rgba(108, 108, 255, 0.15);
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+        }
+        
+        .edit-btn:hover {
+            background: rgba(108, 108, 255, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .profile-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .profile-sidebar {
+                order: 2;
+            }
+            
+            .profile-main {
+                order: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="profile-container">
+                <!-- Левая колонка - профиль -->
+                <div class="profile-sidebar">
+                    <div class="profile-avatar" id="profileAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="profile-name" id="profileName">Загрузка...</div>
+                    <div class="profile-role" id="profileRole">—</div>
+                    
+                    <div class="profile-info-item">
+                        <i class="fas fa-envelope"></i>
+                        <span id="profileEmail">—</span>
+                    </div>
+                    <div class="profile-info-item">
+                        <i class="fab fa-github"></i>
+                        <span id="profileGithub">—</span>
+                    </div>
+                    <div class="profile-info-item">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span id="profileJoined">—</span>
+                    </div>
+                    
+                    <div class="profile-stats">
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statCompleted">0</div>
+                            <div class="profile-stat-label">Завершено</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statActive">0</div>
+                            <div class="profile-stat-label">Активных</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statOverdue">0</div>
+                            <div class="profile-stat-label">Просрочено</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statAvgTime">0</div>
+                            <div class="profile-stat-label">Ср. время (дни)</div>
+                        </div>
+                    </div>
+                    
+                    <button class="edit-btn" id="editProfileBtn" style="margin-top: 20px; width: 100%;">
+                        <i class="fas fa-edit"></i> Редактировать профиль
+                    </button>
+                </div>
+                
+                <!-- Правая колонка - настройки и активность -->
+                <div class="profile-main">
+                    <!-- Личная статистика -->
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-chart-line"></i> Моя активность
+                        </div>
+                        <div class="activity-chart-small">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted);">
+                                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                            </div>
+                            <div class="chart-bars-profile" id="personalChart"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Настройки интерфейса -->
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-sliders-h"></i> Настройки интерфейса
+                        </div>
+                        <div class="settings-group">
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-bell"></i>
+                                    <span>Уведомления в браузере</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notificationsToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-check-double"></i>
+                                    <span>Подтверждение действий</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="confirmActionsToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-compress"></i>
+                                    <span>Компактный режим</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="compactModeToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-sync-alt"></i>
+                                    <span>Автосохранение</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="autoSaveToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- История действий -->
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-history"></i> Последние завершённые задачи
+                        </div>
+                        <div id="recentTasks" class="recent-tasks-list">
+                            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно редактирования профиля -->
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-edit"></i> Редактировать профиль</h3>
+            <input type="text" id="editName" placeholder="Имя">
+            <input type="email" id="editEmail" placeholder="Email">
+            <div class="modal-buttons">
+                <button onclick="closeEditModal()">Отмена</button>
+                <button class="primary" onclick="saveProfileChanges()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    <script src="profile.js"></script>
+    
+    <script>
+        // Обновление информации о пользователе в top-bar
+        function updateTopBarProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) {
+                userNameSpan.textContent = user.name;
+            }
+            
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        setTimeout(updateTopBarProfile, 500);
+        
+        if (window.sidebar) {
+            window.sidebar.initSidebar();
+        }
+    </script>
+</body>
+</html>

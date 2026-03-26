@@ -1,0 +1,3 @@
+setting_key,setting_value,description
+system_name,CRM для команды,Название системы
+default_role,viewer,Роль по умолчанию для новых пользователей

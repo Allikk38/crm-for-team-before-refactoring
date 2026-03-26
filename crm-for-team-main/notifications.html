@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: notifications.html
+    РОЛЬ: Центр уведомлений
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, notifications.js
+      - Данные: localStorage (crm_notifications_center)
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Навигация генерируется централизованно из layout.js
+      3. Кликабельный профиль в правом верхнем углу
+      4. Отображение списка уведомлений
+      5. Маркировка прочитанных/непрочитанных
+      6. Кнопка "Отметить все прочитанными"
+      7. Переход к задаче по клику на уведомление
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Уведомления - CRM для команды</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .notifications-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .notifications-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .notifications-header h2 {
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .mark-all-read {
+            background: rgba(108, 108, 255, 0.15);
+            border: 1px solid var(--card-border);
+            padding: 10px 20px;
+            border-radius: 40px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .mark-all-read:hover {
+            background: rgba(108, 108, 255, 0.3);
+        }
+        
+        .notification-item {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            border: 1px solid var(--card-border);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .notification-item:hover {
+            transform: translateX(4px);
+            border-color: var(--accent);
+        }
+        
+        .notification-item.unread {
+            border-left: 3px solid var(--accent);
+            background: rgba(108, 108, 255, 0.08);
+        }
+        
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .notification-type {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+        
+        .notification-type.task_assigned { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .notification-type.deadline { background: rgba(255, 193, 68, 0.2); color: #ffc107; }
+        .notification-type.overdue { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+        .notification-type.mention { background: rgba(108, 108, 255, 0.2); color: #6c6cff; }
+        
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .notification-message {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+        
+        .notification-date {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .notification-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        
+        .notification-actions button {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        @media (max-width: 768px) {
+            .notifications-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .mark-all-read {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="notifications-container">
+                <div class="notifications-header">
+                    <h2><i class="fas fa-bell"></i> Уведомления</h2>
+                    <button class="mark-all-read" onclick="markAllRead()">
+                        <i class="fas fa-check-double"></i> Отметить все прочитанными
+                    </button>
+                </div>
+                <div id="notificationsList"></div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    <script src="notifications.js"></script>
+    
+    <script>
+        function renderNotifications() {
+            var notifications = JSON.parse(localStorage.getItem('crm_notifications_center') || '[]');
+            var container = document.getElementById('notificationsList');
+            
+            if (!container) return;
+            
+            if (notifications.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-bell-slash"></i><p>Нет уведомлений</p></div>';
+                return;
+            }
+            
+            var html = '';
+            for (var i = 0; i < notifications.length; i++) {
+                var n = notifications[i];
+                var unreadClass = n.read ? '' : 'unread';
+                var typeClass = 'notification-type ' + n.type;
+                var typeLabel = '';
+                if (n.type === 'task_assigned') typeLabel = 'Новая задача';
+                else if (n.type === 'deadline') typeLabel = 'Дедлайн';
+                else if (n.type === 'overdue') typeLabel = 'Просрочка';
+                else if (n.type === 'mention') typeLabel = 'Упоминание';
+                
+                var date = new Date(n.created_at).toLocaleString();
+                
+                html += '<div class="notification-item ' + unreadClass + '" onclick="openNotification(' + n.id + ', \'' + (n.task_id || '') + '\')">' +
+                    '<div class="notification-header">' +
+                        '<span class="' + typeClass + '">' + typeLabel + '</span>' +
+                        '<span class="notification-date">' + date + '</span>' +
+                    '</div>' +
+                    '<div class="notification-title">' + escapeHtml(n.title) + '</div>' +
+                    '<div class="notification-message">' + escapeHtml(n.message) + '</div>' +
+                    '<div class="notification-actions">' +
+                        '<button onclick="event.stopPropagation(); markAsRead(' + n.id + ')">Отметить прочитанным</button>' +
+                        (n.task_id ? '<button onclick="event.stopPropagation(); goToTask(' + n.task_id + ')">Перейти к задаче</button>' : '') +
+                    '</div>' +
+                '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function markAsRead(id) {
+            var notifications = JSON.parse(localStorage.getItem('crm_notifications_center') || '[]');
+            for (var i = 0; i < notifications.length; i++) {
+                if (notifications[i].id === id) {
+                    notifications[i].read = true;
+                    break;
+                }
+            }
+            localStorage.setItem('crm_notifications_center', JSON.stringify(notifications));
+            renderNotifications();
+            if (window.notifications) window.notifications.updateBadge();
+        }
+        
+        function markAllRead() {
+            var notifications = JSON.parse(localStorage.getItem('crm_notifications_center') || '[]');
+            for (var i = 0; i < notifications.length; i++) {
+                notifications[i].read = true;
+            }
+            localStorage.setItem('crm_notifications_center', JSON.stringify(notifications));
+            renderNotifications();
+            if (window.notifications) window.notifications.updateBadge();
+        }
+        
+        function openNotification(id, taskId) {
+            markAsRead(id);
+            if (taskId) {
+                window.location.href = 'tasks.html?task=' + taskId;
+            }
+        }
+        
+        function goToTask(taskId) {
+            window.location.href = 'tasks.html?task=' + taskId;
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Обновление информации о пользователе
+        function updateUserProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) {
+                userNameSpan.textContent = user.name;
+            }
+            
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        async function init() {
+            await auth.initAuth();
+            
+            var currentUser = auth.getCurrentUser();
+            if (currentUser) {
+                updateUserProfile();
+            }
+            
+            renderNotifications();
+            if (window.theme) window.theme.initTheme();
+            if (window.sidebar) window.sidebar.initSidebar();
+        }
+        
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

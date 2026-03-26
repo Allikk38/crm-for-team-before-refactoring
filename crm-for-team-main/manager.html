@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: manager.html
+    РОЛЬ: Панель менеджера для анализа работы команды
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, manager.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, manager.js
+      - Данные: data/users.csv, data/tasks.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Навигация генерируется централизованно из layout.js
+      3. Кликабельный профиль в правом верхнем углу
+      4. KPI показатели (всего задач, просрочено, закрыто за неделю, в работе)
+      5. Нагрузка по агентам с прогресс-барами
+      6. Список просроченных задач
+      7. График активности по дням
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Панель менеджера | CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        .manager-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .user-select-wrapper {
+            background: var(--card-bg);
+            border-radius: 40px;
+            padding: 4px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .user-select-wrapper i {
+            color: var(--accent);
+        }
+        
+        #userSelect {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            padding: 8px;
+            outline: none;
+        }
+        
+        .agent-list {
+            margin-bottom: 32px;
+        }
+        
+        .agent-item {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid var(--card-border);
+        }
+        
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .agent-name {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .agent-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 0.75rem;
+        }
+        
+        .agent-stats span {
+            background: var(--input-bg);
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        
+        .progress-bar-agent {
+            height: 6px;
+            background: var(--input-bg);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .progress-fill-agent {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 6px;
+            transition: width 0.3s;
+        }
+        
+        .overdue-task-item {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid #ff6b6b;
+        }
+        
+        .overdue-task-title {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .overdue-task-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 12px;
+        }
+        
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            height: 150px;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        .chart-bar {
+            flex: 1;
+            background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+            border-radius: 8px 8px 0 0;
+            transition: height 0.5s ease;
+            min-height: 4px;
+            position: relative;
+        }
+        
+        .chart-bar-value {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .chart-labels {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 8px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        @media (max-width: 768px) {
+            .manager-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .user-select-wrapper {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="manager-header">
+                    <div class="user-select-wrapper">
+                        <i class="fas fa-user-tie"></i>
+                        <select id="userSelect">
+                            <option value="">Выберите пользователя</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Карточки -->
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="fas fa-list"></i> Всего задач</div>
+                    <div class="kpi-value" id="totalTasks">0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="fas fa-exclamation-triangle"></i> Просрочено</div>
+                    <div class="kpi-value" id="overdueTasks">0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="fas fa-calendar-check"></i> Закрыто за неделю</div>
+                    <div class="kpi-value" id="closedWeek">0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="fas fa-play"></i> В работе сейчас</div>
+                    <div class="kpi-value" id="inProgress">0</div>
+                </div>
+            </div>
+
+            <!-- Нагрузка по агентам -->
+            <div class="agent-list">
+                <div class="section-title">
+                    <i class="fas fa-users"></i> Загрузка команды
+                </div>
+                <div id="agentList"></div>
+            </div>
+
+            <!-- Просроченные задачи -->
+            <div class="overdue-list">
+                <div class="section-title">
+                    <i class="fas fa-clock"></i> Просроченные задачи
+                </div>
+                <div id="overdueTasksList"></div>
+            </div>
+
+            <!-- График активности -->
+            <div class="activity-chart">
+                <div class="section-title">
+                    <i class="fas fa-chart-line"></i> Закрытые задачи по дням
+                </div>
+                <div id="activityChart"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    <script src="manager.js"></script>
+    
+    <script>
+        // Обновление информации о пользователе
+        function updateUserProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) {
+                userNameSpan.textContent = user.name;
+            }
+            
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        setTimeout(updateUserProfile, 500);
+        
+        if (window.sidebar) {
+            window.sidebar.initSidebar();
+        }
+    </script>
+</body>
+</html>

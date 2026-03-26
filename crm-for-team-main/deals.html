@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: deals.html
+    РОЛЬ: Управление заявками на покупку/продажу недвижимости
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, deals.css, modal.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, deals.js
+      - Данные: data/deals.csv, data/counterparties.csv, data/complexes.csv, data/users.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Навигация генерируется централизованно из layout.js
+      3. Кликабельный профиль в правом верхнем углу
+      4. Kanban-доска заявок по статусам (9 статусов)
+      5. Drag-and-drop для изменения статуса заявки
+      6. Модальное окно создания/редактирования заявки
+      7. Фильтрация по роли пользователя (админ/менеджер видят всё, агент — свои)
+      8. Интеграция с объектами и контрагентами
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Заявки - CRM для команды</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        /* Стили для страницы заявок */
+        .deals-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .deals-filters {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .deals-filters input,
+        .deals-filters select {
+            padding: 8px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 40px;
+            color: var(--text-primary);
+        }
+        
+        .add-deal-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .add-deal-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        /* Kanban колонки для заявок */
+        .kanban-board-deals {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            padding-bottom: 16px;
+            min-height: calc(100vh - 200px);
+        }
+        
+        .deal-column {
+            min-width: 320px;
+            width: 320px;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 200px);
+        }
+        
+        .deal-column-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            border-radius: 24px 24px 0 0;
+        }
+        
+        .deal-column-header .status-icon {
+            font-size: 1.1rem;
+        }
+        
+        .deal-column-header .count {
+            background: rgba(108, 108, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+        
+        .deals-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            min-height: 200px;
+        }
+        
+        .deal-card {
+            background: var(--input-bg);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid var(--accent);
+        }
+        
+        .deal-card:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.1);
+        }
+        
+        .deal-card.dragging {
+            opacity: 0.5;
+        }
+        
+        .deal-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .deal-number {
+            color: var(--accent);
+            font-size: 0.7rem;
+        }
+        
+        .deal-participants {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .deal-price {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+        
+        .deal-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+        
+        .deal-type {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 0.6rem;
+        }
+        
+        .type-primary { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .type-secondary { background: rgba(33, 150, 243, 0.2); color: #2196f3; }
+        .type-exchange { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+        .type-urgent { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+        
+        .deal-status-badge {
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+        }
+        
+        .empty-deals {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 20px;
+        }
+        
+        /* Цвета статусов для заголовков колонок */
+        .status-new { border-top-color: #9e9e9e; }
+        .status-showing { border-top-color: #2196f3; }
+        .status-negotiation { border-top-color: #ffc107; }
+        .status-deposit { border-top-color: #9c27b0; }
+        .status-documents { border-top-color: #ff9800; }
+        .status-contract { border-top-color: #f44336; }
+        .status-payment { border-top-color: #4caf50; }
+        .status-closed { border-top-color: #607d8b; }
+        .status-cancelled { border-top-color: #9e9e9e; }
+        
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        /* Модальное окно заявки */
+        .deal-modal-content {
+            max-width: 700px;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .form-row .input-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        .price-input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .price-input-group input {
+            flex: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .form-row {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .deal-column {
+                min-width: 280px;
+                width: 280px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <!-- Навигация генерируется централизованно из layout.js -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- контейнер для динамической генерации навигации -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <!-- Кнопка выхода добавляется автоматически из layout.js -->
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-actions">
+                    <button id="addDealBtn" class="add-deal-btn">
+                        <i class="fas fa-plus"></i> Новая заявка
+                    </button>
+                </div>
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="deals-header">
+                <div class="deals-filters">
+                    <input type="text" id="searchInput" placeholder="Поиск по №, объекту, участникам">
+                    <select id="typeFilter">
+                        <option value="all">Все типы</option>
+                        <option value="primary">Первичка</option>
+                        <option value="secondary">Вторичка</option>
+                        <option value="exchange">Альтернатива</option>
+                        <option value="urgent">Срочный выкуп</option>
+                    </select>
+                    <select id="agentFilter">
+                        <option value="all">Все агенты</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="kanban-board-deals" id="kanbanBoard">
+                <!-- Колонки будут сгенерированы JavaScript -->
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-pulse"></i>
+                    <p>Загрузка заявок...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно создания/редактирования заявки -->
+    <div id="dealModal" class="modal">
+        <div class="modal-content deal-modal-content">
+            <h3 id="modalTitle"><i class="fas fa-handshake"></i> Создать заявку</h3>
+            <input type="hidden" id="dealId">
+            
+            <div class="form-row">
+                <div class="input-group">
+                    <label><i class="fas fa-building"></i> Объект</label>
+                    <select id="dealComplex" required>
+                        <option value="">Выберите объект</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label><i class="fas fa-hashtag"></i> Квартира/секция</label>
+                    <input type="text" id="dealApartment" placeholder="Например: 45 или секция 3">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="input-group">
+                    <label><i class="fas fa-user"></i> Продавец/Собственник</label>
+                    <select id="dealSeller">
+                        <option value="">Выберите продавца</option>
+                    </select>
+                    <button type="button" class="small-btn" onclick="openCounterpartyModal('seller')" style="margin-top: 4px;">+ Новый</button>
+                </div>
+                <div class="input-group">
+                    <label><i class="fas fa-user"></i> Покупатель</label>
+                    <select id="dealBuyer">
+                        <option value="">Выберите покупателя</option>
+                    </select>
+                    <button type="button" class="small-btn" onclick="openCounterpartyModal('buyer')" style="margin-top: 4px;">+ Новый</button>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="input-group">
+                    <label><i class="fas fa-tag"></i> Тип сделки</label>
+                    <select id="dealType">
+                        <option value="primary">🏗️ Первичка (от застройщика)</option>
+                        <option value="secondary">🏠 Вторичка (от собственника)</option>
+                        <option value="exchange">🔄 Альтернатива (обмен)</option>
+                        <option value="urgent">⚡ Срочный выкуп</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label><i class="fas fa-user-tie"></i> Ответственный агент</label>
+                    <select id="dealAgent">
+                        <option value="">Выберите агента</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="input-group">
+                    <label><i class="fas fa-ruble-sign"></i> Начальная цена</label>
+                    <input type="number" id="dealPriceInitial" placeholder="Например: 8000000">
+                </div>
+                <div class="input-group">
+                    <label><i class="fas fa-chart-line"></i> Текущая цена</label>
+                    <input type="number" id="dealPriceCurrent" placeholder="Текущее предложение">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="input-group">
+                    <label><i class="fas fa-percent"></i> Комиссия (%)</label>
+                    <input type="number" id="dealCommission" value="3" step="0.5" placeholder="3">
+                </div>
+                <div class="input-group">
+                    <label><i class="fas fa-calendar"></i> Дедлайн</label>
+                    <input type="date" id="dealDeadline">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="input-group">
+                    <label><i class="fas fa-bank"></i> Банк (ипотека)</label>
+                    <input type="text" id="dealBank" placeholder="Сбербанк, ВТБ...">
+                </div>
+                <div class="input-group">
+                    <label><i class="fas fa-check-circle"></i> Ипотека одобрена</label>
+                    <select id="dealMortgageApproved">
+                        <option value="false">Нет</option>
+                        <option value="true">Да</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="input-group">
+                <label><i class="fas fa-sticky-note"></i> Примечания</label>
+                <textarea id="dealNotes" rows="3" placeholder="Особенности, пожелания клиентов..."></textarea>
+            </div>
+            
+            <div class="modal-buttons">
+                <button onclick="closeDealModal()"><i class="fas fa-times"></i> Отмена</button>
+                <button class="primary" onclick="saveDeal()"><i class="fas fa-save"></i> Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для быстрого создания контрагента -->
+    <div id="counterpartyModal" class="modal">
+        <div class="modal-content">
+            <h3 id="counterpartyModalTitle"><i class="fas fa-user-plus"></i> Новый контрагент</h3>
+            <input type="hidden" id="counterpartyType">
+            <input type="text" id="counterpartyName" placeholder="ФИО / Название организации" required>
+            <input type="tel" id="counterpartyPhone" placeholder="Телефон">
+            <input type="email" id="counterpartyEmail" placeholder="Email">
+            <select id="counterpartyPersonType">
+                <option value="individual">Физическое лицо</option>
+                <option value="legal">Юридическое лицо</option>
+            </select>
+            <textarea id="counterpartyNotes" rows="2" placeholder="Примечания..."></textarea>
+            <div class="modal-buttons">
+                <button onclick="closeCounterpartyModal()">Отмена</button>
+                <button class="primary" onclick="saveCounterparty()">Создать</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="theme.js"></script>
+    <script src="layout.js"></script>
+    <script src="deals.js"></script>
+    
+    <script>
+        // Обновление информации о пользователе
+        function updateUserProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) userNameSpan.textContent = user.name;
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        setTimeout(updateUserProfile, 500);
+        
+        if (window.sidebar) window.sidebar.initSidebar();
+    </script>
+</body>
+</html>

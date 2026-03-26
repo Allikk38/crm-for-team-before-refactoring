@@ -1,0 +1,4 @@
+id,title,address,developer,price_from,price_to,status,assigned_to,coordinates,description,documents,photos,is_public,created_at,updated_at
+1,ЖК Солнечный,ул. Солнечная 1,СтройИнвест,5000000,8000000,active,Danilyan,55.123,45.678,"Красивый жилой комплекс",[],[],true,2026-03-25,2026-03-25
+2,ЖК Зелёный,пр. Зелёный 15,Экострой,3000000,4500000,active,Lobanov,55.234,45.789,"Экологичный район",[],[],true,2026-03-25,2026-03-25
+3,Внутренний проект,ул. Внутренняя 5,,1000000,2000000,in_progress,Reshetov,55.345,45.890,"Только для команды",[],[],false,2026-03-25,2026-03-25
